@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv sync:*)",
+      "Bash(del 开发总结.md:*)",
+      "Bash(del:*)",
+      "Bash(mkdir:*)",
+      "Bash(cat:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(echo:*)"
+    ]
+  }
+}

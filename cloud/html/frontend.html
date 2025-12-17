@@ -1,0 +1,654 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小米手环心率 - 实时监测</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            color: #fff;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            padding: 40px;
+            max-width: 500px;
+            width: 100%;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            animation: fadeIn 0.6s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            font-size: 32px;
+            font-weight: 700;
+            margin-bottom: 8px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .header p {
+            font-size: 14px;
+            opacity: 0.9;
+            letter-spacing: 1px;
+        }
+
+        .status-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            padding: 12px 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            font-size: 13px;
+        }
+
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .status-badge {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .status-badge:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+        }
+
+        .user-count {
+            background: rgba(255, 255, 255, 0.2);
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .user-count.active {
+            animation: countBounce 0.5s ease;
+        }
+
+        @keyframes countBounce {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.2); background: rgba(255, 255, 255, 0.4); }
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+            box-shadow: 0 0 10px #4ade80;
+        }
+
+        .status-dot.disconnected {
+            background: #ef4444;
+            box-shadow: 0 0 10px #ef4444;
+            animation: none;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.6; transform: scale(1.2); }
+        }
+
+        .heart-display {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            border-radius: 20px;
+            padding: 40px 20px;
+            text-align: center;
+            margin: 20px 0;
+            box-shadow: 0 10px 30px rgba(245, 87, 108, 0.4);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .heart-display::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+            animation: shine 3s infinite;
+        }
+
+        @keyframes shine {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .heart-rate-value {
+            font-size: 80px;
+            font-weight: 800;
+            line-height: 1;
+            margin-bottom: 5px;
+            text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .heart-rate-unit {
+            font-size: 20px;
+            opacity: 0.95;
+            font-weight: 500;
+            letter-spacing: 2px;
+        }
+
+        .heart-icon {
+            font-size: 48px;
+            margin-top: 10px;
+            animation: heartbeat 1s infinite;
+            display: inline-block;
+        }
+
+        @keyframes heartbeat {
+            0%, 100% { transform: scale(1); }
+            10%, 30% { transform: scale(1.1); }
+            20%, 40% { transform: scale(1); }
+        }
+
+        .zone-indicator {
+            text-align: center;
+            font-size: 16px;
+            font-weight: 600;
+            margin-top: 10px;
+            padding: 8px 20px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 999px;
+            display: inline-block;
+            letter-spacing: 1px;
+        }
+
+        .history-chart {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 20px;
+            margin-top: 20px;
+            min-height: 120px;
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 12px;
+            opacity: 0.9;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .chart-bars {
+            display: flex;
+            align-items: flex-end;
+            gap: 4px;
+            height: 80px;
+        }
+
+        .bar {
+            flex: 1;
+            background: linear-gradient(to top, #a78bfa, #c4b5fd);
+            border-radius: 4px 4px 0 0;
+            transition: all 0.3s ease;
+            min-width: 6px;
+            position: relative;
+        }
+
+        .bar:hover {
+            background: linear-gradient(to top, #8b5cf6, #a78bfa);
+            transform: translateY(-2px);
+        }
+
+        .bar::after {
+            content: attr(data-value);
+            position: absolute;
+            bottom: -18px;
+            left: 50%;
+            transform: translateX(-50%);
+            font-size: 10px;
+            opacity: 0.7;
+            white-space: nowrap;
+        }
+
+        .stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 15px;
+            border-radius: 12px;
+            text-align: center;
+            transition: all 0.3s ease;
+        }
+
+        .stat-card:hover {
+            background: rgba(255, 255, 255, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 4px;
+        }
+
+        .stat-label {
+            font-size: 12px;
+            opacity: 0.8;
+            letter-spacing: 0.5px;
+        }
+
+        .connection-status {
+            text-align: center;
+            margin-top: 20px;
+            padding: 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            font-weight: 500;
+            display: none;
+        }
+
+        .connection-status.show {
+            display: block;
+        }
+
+        .connection-status.connected {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+
+        .connection-status.disconnected {
+            background: rgba(239, 68, 68, 0.2);
+            color: #ef4444;
+        }
+
+        .connection-status.connecting {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+
+        .pulse-dot {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: currentColor;
+            margin-right: 6px;
+            animation: dotPulse 1.5s infinite;
+        }
+
+        @keyframes dotPulse {
+            0%, 100% { opacity: 0.3; transform: scale(1); }
+            50% { opacity: 1; transform: scale(1.3); }
+        }
+
+        .disconnected {
+            background: #ef4444;
+        }
+
+        /* 响应式 */
+        @media (max-width: 600px) {
+            .container {
+                padding: 24px;
+            }
+
+            .heart-rate-value {
+                font-size: 60px;
+            }
+
+            .stats {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>⚡ 心率实时监测</h1>
+            <p>Live Heart Rate Monitor</p>
+        </div>
+
+        <div class="status-bar">
+            <div class="status-item">
+                <div class="status-dot" id="statusDot"></div>
+                <span id="statusText">连接中...</span>
+                <div class="status-badge" id="onlineBadge" style="display: none;">
+                    <span>👥</span>
+                    <span class="user-count" id="sseClients">0</span>
+                </div>
+            </div>
+            <div class="status-item">
+                <span id="lastUpdate">--:--:--</span>
+            </div>
+        </div>
+
+        <div class="heart-display">
+            <div class="heart-rate-value" id="heartRate">--</div>
+            <div class="heart-rate-unit">BPM</div>
+            <div class="heart-icon">❤️</div>
+            <div class="zone-indicator" id="zoneIndicator">等待数据...</div>
+        </div>
+
+        <div class="history-chart">
+            <div class="chart-title">
+                <span>📊 最近心率趋势</span>
+                <span id="dataCount">0 条</span>
+            </div>
+            <div class="chart-bars" id="chartBars">
+                <!-- JavaScript will populate this -->
+            </div>
+        </div>
+
+        <div class="stats">
+            <div class="stat-card">
+                <div class="stat-value" id="avgValue">--</div>
+                <div class="stat-label">平均 BPM</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value" id="maxValue">--</div>
+                <div class="stat-label">最高 BPM</div>
+            </div>
+        </div>
+
+        <div class="connection-status" id="connStatus"></div>
+    </div>
+
+    <script>
+        // 配置 - 使用相对路径，自动适配部署环境
+        const SSE_URL = '/stream';
+
+        // 状态管理
+        let eventSource = null;
+        let heartRateData = [];
+        let reconnectTimer = null;
+        let maxDataPoints = 20;
+
+        // DOM 元素
+        const dom = {
+            heartRate: document.getElementById('heartRate'),
+            zoneIndicator: document.getElementById('zoneIndicator'),
+            statusDot: document.getElementById('statusDot'),
+            statusText: document.getElementById('statusText'),
+            lastUpdate: document.getElementById('lastUpdate'),
+            dataCount: document.getElementById('dataCount'),
+            chartBars: document.getElementById('chartBars'),
+            avgValue: document.getElementById('avgValue'),
+            maxValue: document.getElementById('maxValue'),
+            connStatus: document.getElementById('connStatus'),
+            sseClients: document.getElementById('sseClients'),
+            onlineBadge: document.getElementById('onlineBadge')
+        };
+
+        // 上一次连接数（用于检测变化）
+        let lastClientCount = 0;
+
+        // 连接 SSE
+        function connectSSE() {
+            showStatus('connecting', '连接中...');
+
+            // 关闭现有连接
+            if (eventSource) {
+                eventSource.close();
+            }
+
+            try {
+                eventSource = new EventSource(SSE_URL);
+
+                // 连接成功
+                eventSource.onopen = () => {
+                    showStatus('connected', '已连接');
+                    console.log('✅ SSE 连接成功');
+                };
+
+                // 接收消息
+                eventSource.onmessage = (event) => {
+                    if (event.data === ':heartbeat') {
+                        console.log('💓 心跳接收');
+                        return;
+                    }
+
+                    try {
+                        const data = JSON.parse(event.data);
+                        updateDisplay(data);
+
+                        // 从 SSE 数据中读取连接数并显示
+                        if (data.active_clients !== undefined) {
+                            updateOnlineUsers(data.active_clients);
+                        }
+                    } catch (e) {
+                        console.error('解析数据失败:', e);
+                    }
+                };
+
+                // 错误处理
+                eventSource.onerror = (error) => {
+                    console.error('❌ SSE 错误:', error);
+                    showStatus('disconnected', '连接断开，重连中...');
+                    eventSource.close();
+
+                    // 自动重连
+                    clearTimeout(reconnectTimer);
+                    reconnectTimer = setTimeout(connectSSE, 3000);
+                };
+
+            } catch (e) {
+                console.error('连接失败:', e);
+                showStatus('disconnected', '无法连接，3秒后重试...');
+                clearTimeout(reconnectTimer);
+                reconnectTimer = setTimeout(connectSSE, 3000);
+            }
+        }
+
+        // 更新显示
+        function updateDisplay(data) {
+            const hr = data.heart_rate;
+
+            // 1. 显示当前心率（带动画）
+            animateValue(dom.heartRate, parseInt(dom.heartRate.textContent) || 0, hr, 500);
+
+            // 2. 更新心率区间
+            const zone = getHeartRateZone(hr);
+            dom.zoneIndicator.textContent = zone.name;
+            dom.zoneIndicator.style.background = zone.color;
+
+            // 3. 更新时间和统计
+            const now = new Date();
+            dom.lastUpdate.textContent = now.toLocaleTimeString();
+            dom.dataCount.textContent = `${heartRateData.length} 条`;
+
+            // 4. 添加到历史数据
+            heartRateData.push(hr);
+            if (heartRateData.length > maxDataPoints) {
+                heartRateData.shift();
+            }
+
+            // 5. 更新图表
+            updateChart();
+
+            // 6. 更新平均值和最大值
+            updateStats();
+
+            // 7. 微妙的背景动画
+            pulseBackground();
+        }
+
+        // 获取心率区间
+        function getHeartRateZone(hr) {
+            if (hr < 60) return { name: '休息状态', color: 'rgba(59, 130, 246, 0.3)' };
+            if (hr < 100) return { name: '放松状态', color: 'rgba(34, 197, 94, 0.3)' };
+            if (hr < 130) return { name: '有氧运动', color: 'rgba(251, 191, 36, 0.3)' };
+            if (hr < 160) return { name: '燃脂区间', color: 'rgba(249, 115, 22, 0.3)' };
+            return { name: '高强度', color: 'rgba(239, 68, 68, 0.3)' };
+        }
+
+        // 更新图表
+        function updateChart() {
+            const max = Math.max(...heartRateData, 60);
+            const min = Math.min(...heartRateData, 60);
+            const range = max - min || 1;
+
+            dom.chartBars.innerHTML = heartRateData.map(val => {
+                const height = ((val - min) / range) * 100;
+                return `<div class="bar" style="height: ${height}%" data-value="${val}"></div>`;
+            }).join('');
+        }
+
+        // 更新统计
+        function updateStats() {
+            if (heartRateData.length === 0) return;
+
+            const sum = heartRateData.reduce((a, b) => a + b, 0);
+            const avg = Math.round(sum / heartRateData.length);
+            const max = Math.max(...heartRateData);
+
+            dom.avgValue.textContent = avg;
+            dom.maxValue.textContent = max;
+        }
+
+        // 更新在线人数
+        function updateOnlineUsers(count) {
+            if (!dom.sseClients || !dom.onlineBadge) return;
+
+            // 首次收到数据时显示徽章
+            if (dom.onlineBadge.style.display === 'none') {
+                dom.onlineBadge.style.display = 'flex';
+            }
+
+            // 如果人数变化，添加动画
+            if (count !== lastClientCount) {
+                dom.sseClients.classList.add('active');
+                setTimeout(() => {
+                    dom.sseClients.classList.remove('active');
+                }, 500);
+            }
+
+            // 更新数值
+            dom.sseClients.textContent = count;
+            lastClientCount = count;
+        }
+
+        // 状态显示
+        function showStatus(type, message) {
+            const statusMap = {
+                'connected': { class: 'connected', dotClass: '', showDot: true },
+                'disconnected': { class: 'disconnected', dotClass: 'disconnected', showDot: true },
+                'connecting': { class: 'connecting', dotClass: '', showDot: true }
+            };
+
+            const status = statusMap[type];
+
+            // 更新状态点
+            dom.statusDot.className = `status-dot ${status.dotClass}`;
+            dom.statusText.textContent = message;
+
+            // 显示连接状态提示
+            dom.connStatus.className = `connection-status show ${status.class}`;
+            dom.connStatus.innerHTML = status.showDot ?
+                `<span class=\"pulse-dot\"></span>${message}` : message;
+
+            // 3秒后隐藏提示
+            if (type === 'connected') {
+                setTimeout(() => {
+                    dom.connStatus.classList.remove('show');
+                }, 2000);
+            }
+        }
+
+        // 动画更新数值
+        function animateValue(element, start, end, duration) {
+            if (start === end) return;
+
+            const startTime = performance.now();
+            const animate = (currentTime) => {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+
+                // 使用缓动函数
+                const easeOut = 1 - Math.pow(1 - progress, 3);
+                const current = Math.round(start + (end - start) * easeOut);
+
+                element.textContent = current;
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                }
+            };
+
+            requestAnimationFrame(animate);
+        }
+
+        // 背景脉冲动画
+        function pulseBackground() {
+            document.body.style.animation = 'none';
+            setTimeout(() => {
+                document.body.style.animation = '';
+            }, 10);
+        }
+
+        // 页面加载时自动连接
+        window.addEventListener('DOMContentLoaded', () => {
+            console.log('🚀 启动心率监测...');
+            connectSSE();
+        });
+
+        // 页面关闭时清理
+        window.addEventListener('beforeunload', () => {
+            if (eventSource) {
+                eventSource.close();
+            }
+            clearTimeout(reconnectTimer);
+        });
+    </script>
+</body>
+</html>

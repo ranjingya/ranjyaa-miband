@@ -1,0 +1,11 @@
+[project]
+name = "miband-cloud-bridge"
+version = "1.0.0"
+description = "小米手环心率云端桥接服务"
+requires-python = ">=3.13"
+dependencies = [
+    "flask>=3.1.2",
+    "redis>=7.1.0",
+    "gunicorn[gevent]>=21.2.0",
+    "gevent>=23.9.1"
+]

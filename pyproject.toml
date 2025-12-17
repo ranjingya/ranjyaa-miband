@@ -1,0 +1,12 @@
+[project]
+name = "ranjyaa-miband"
+version = "0.1.0"
+description = "小米手环心率实时监测系统"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+    "bleak>=0.22.0",
+    "flask>=3.1.2",
+    "redis>=7.1.0",
+    "requests>=2.32.5",
+]
