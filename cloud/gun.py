@@ -10,8 +10,8 @@ worker_class = 'gevent'
 timeout = 60
 # 最大并发量
 worker_connections = 100
-# 日志配置（输出到 stdout/stderr）
-accesslog = '-'
-errorlog = '-'
-loglevel = 'info'
+# 日志配置
+accesslog = None
+errorlog = "data/error.log"
+loglevel = "info"
 
