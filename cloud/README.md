@@ -1,70 +1,35 @@
-# 小米手环云桥接服务
+# cloud - 云端服务
 
-## 快速启动
+Flask 服务，负责接收本地上传的心率/窗口数据，SSE 实时推送，LangChain Agent 聊天。
 
-### 方式 1: 直接运行
-```bash
-python cloud_bridge.py
-```
+## 文件
 
-### 方式 2: Gunicorn (生产)
-```bash
-gunicorn -c gun.py cloud_bridge:app
-```
-
-### 方式 3: Docker
-```bash
-docker build -t miband-bridge .
-docker run -d -p 5001:5001 \
-  -e REDIS_ENABLED=false \
-  --name miband-bridge miband-bridge
-```
+| 文件 | 说明 |
+|------|------|
+| `cloud_bridge.py` | Flask 主服务（路由、SSE、数据持久化） |
+| `agent.py` | LangChain Agent（4 个 @tool + ReAct + 流式输出） |
+| `gun.py` | Gunicorn 配置（gevent worker） |
+| `Dockerfile` | Docker 部署 |
+| `html/frontend.html` | 单文件前端（心率图表 + 窗口 + 聊天面板） |
+| `data/` | 运行时自动创建，JSON 持久化（hr_history / window_history） |
 
 ## 环境变量
 
 | 变量 | 默认值 | 说明 |
 |------|--------|------|
-| `FLASK_PORT` | `5001` | 服务端口 |
-| `REDIS_ENABLED` | `false` | 是否启用 Redis |
-| `REDIS_HOST` | `127.0.0.1` | Redis 地址 |
-| `REDIS_PORT` | `6379` | Redis 端口 |
-| `REDIS_PASSWORD` | `""` | Redis 密码（留空表示无密码） |
+| `FLASK_HOST` | `0.0.0.0` | 监听地址 |
+| `FLASK_PORT` | `5001` | 端口 |
+| `MINIMAX_API_KEY` | （必须） | MiniMax API 密钥 |
 
-## API 端点
+## API
 
-- **`/`** - 前端页面
-- **`/upload`** - 接收本地上传 (POST)
-- **`/stream`** - SSE 数据流
-- **`/status`** - 系统状态
-- **`/health`** - 健康检查
-- **`/reset`** - 重置统计数据
-
-## 文件说明
-
-- **cloud_bridge.py** - 主服务
-- **gun.py** - Gunicorn 配置
-- **Dockerfile** - Docker 部署
-- **pyproject.toml** - 依赖
-- **html/frontend.html** - 前端界面
-
-## 测试
-
-```bash
-# 测试上传
-curl -X POST http://localhost:5001/upload \
-  -H "Content-Type: application/json" \
-  -d '{"heart_rate": 75, "device_address": "F9:C6:2B:B9:A4"}'
-
-# 查看状态
-curl http://localhost:5001/status
-```
-
-## 访问
-
-```
-http://服务器IP:5001
-```
-
----
-
-**完整文档**: 查看上级目录的 `README.md`
+| 路由 | 方法 | 说明 |
+|------|------|------|
+| `/` | GET | 前端页面 |
+| `/upload` | POST | 心率上传 |
+| `/upload_window` | POST | 窗口切换上传 |
+| `/stream` | GET | SSE 心率推送 |
+| `/chat` | POST | Agent 聊天（SSE 流式） |
+| `/status` | GET | 状态 |
+| `/health` | GET | 健康检查 |
+| `/reset` | POST | 重置数据 |
