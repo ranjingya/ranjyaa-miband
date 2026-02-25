@@ -1,654 +1,881 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小米手环心率 - 实时监测</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Ranjyaa-miband</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  :root {
+    --bg: #0e0e10;
+    --surface: #18181b;
+    --border: #27272a;
+    --text: #e4e4e7;
+    --text-dim: #71717a;
+    --red: #ef4444;
+    --green: #22c55e;
+    --yellow: #eab308;
+    --blue: #3b82f6;
+    --font-mono: 'Courier New', 'Consolas', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-mono);
+    font-size: 15px;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    justify-content: center;
+    padding: 24px 16px;
+  }
+  .container {
+    width: 100%;
+    max-width: 720px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    overflow: hidden;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
 
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-            color: #fff;
-        }
+  /* header */
+  .header {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .header h1 {
+    font-size: 16px;
+    font-weight: 600;
+    letter-spacing: 1px;
+  }
+  .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    display: inline-block;
+  }
+  .dot.live { background: var(--green); animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{ opacity:1; } 50%{ opacity:.3; } }
 
-        .container {
-            background: rgba(255, 255, 255, 0.15);
-            backdrop-filter: blur(20px);
-            border-radius: 24px;
-            padding: 40px;
-            max-width: 500px;
-            width: 100%;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            animation: fadeIn 0.6s ease-out;
-        }
+  /* hr display */
+  .hr-section {
+    text-align: center;
+    padding: 20px 0 8px;
+    flex-shrink: 0;
+  }
+  .hr-value {
+    font-size: 80px;
+    font-weight: 700;
+    line-height: 1;
+    transition: transform .15s;
+  }
+  .hr-value.bump { transform: scale(1.04); }
+  .hr-unit { font-size: 16px; color: var(--text-dim); margin-left: 4px; }
+  .hr-zone {
+    font-size: 13px;
+    color: var(--text-dim);
+    margin-top: 6px;
+    letter-spacing: .5px;
+  }
 
-        @keyframes fadeIn {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
+  /* current window */
+  .window-bar {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 13px;
+    color: var(--text-dim);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+  .window-bar span { color: var(--text); }
 
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-        }
+  /* chart */
+  .chart-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    flex-shrink: 0;
+  }
+  canvas { width: 100%; height: 140px; display: block; }
 
-        .header h1 {
-            font-size: 32px;
-            font-weight: 700;
-            margin-bottom: 8px;
-            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
-        }
+  /* stats */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 12px;
+    flex-shrink: 0;
+  }
+  .stat-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    text-align: center;
+  }
+  .stat-label { font-size: 12px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 1px; }
+  .stat-val { font-size: 28px; font-weight: 700; margin-top: 4px; }
 
-        .header p {
-            font-size: 14px;
-            opacity: 0.9;
-            letter-spacing: 1px;
-        }
+  /* chat */
+  .chat-section {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+  }
+  .chat-section.has-messages {
+    flex-direction: column;
+  }
+  .chat-input-row {
+    display: flex;
+    gap: 8px;
+    order: -1;
+  }
+  .chat-section.has-messages .chat-input-row {
+    order: 1;
+  }
+  .chat-input-row input {
+    flex: 1;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 14px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    outline: none;
+  }
+  .chat-input-row input::placeholder { color: var(--text-dim); }
+  .chat-input-row input:focus { border-color: var(--text-dim); }
+  .chat-input-row button {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 18px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .chat-input-row button:hover { border-color: var(--text-dim); }
+  .chat-input-row button:disabled { opacity: .4; cursor: not-allowed; }
 
-        .status-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 20px;
-            padding: 12px 20px;
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            font-size: 13px;
-        }
+  .chat-messages {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+  }
 
-        .status-item {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-        }
+  /* 空状态 */
+  .chat-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 16px;
+    padding: 20px;
+  }
+  .chat-empty-hint {
+    font-size: 13px;
+    color: var(--text-dim);
+    letter-spacing: .5px;
+  }
+  .chat-quick-btns {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+  }
+  .chat-quick-btn {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    color: var(--text-dim);
+    padding: 6px 14px;
+    font-family: var(--font-mono);
+    font-size: 12px;
+    cursor: pointer;
+    transition: border-color .2s, color .2s;
+  }
+  .chat-quick-btn:hover {
+    border-color: var(--text-dim);
+    color: var(--text);
+  }
+  .chat-section.has-messages .chat-empty {
+    display: none;
+  }
 
-        .status-badge {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            padding: 4px 10px;
-            border-radius: 999px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-            transition: all 0.3s ease;
-        }
+  /* 用户消息 */
+  .msg-user {
+    align-self: flex-end;
+    background: var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 14px;
+    max-width: 85%;
+    word-break: break-word;
+  }
 
-        .status-badge:hover {
-            transform: translateY(-1px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        }
+  /* agent 消息组 */
+  .msg-agent-group {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    max-width: 90%;
+  }
 
-        .user-count {
-            background: rgba(255, 255, 255, 0.2);
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 11px;
-            font-weight: 700;
-        }
+  /* 思维链气泡 - 可折叠 + 动画 */
+  .msg-thinking {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
+  .msg-thinking summary {
+    padding: 8px 12px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 12px;
+    color: var(--text-dim);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .msg-thinking summary::before {
+    content: '▶';
+    font-size: 10px;
+    transition: transform .25s ease;
+    display: inline-block;
+  }
+  .msg-thinking[open] summary::before {
+    transform: rotate(90deg);
+  }
+  .msg-thinking .details-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows .3s ease;
+    overflow: hidden;
+  }
+  .msg-thinking[open] .details-body {
+    grid-template-rows: 1fr;
+  }
+  .msg-thinking .details-inner {
+    min-height: 0;
+    overflow: hidden;
+  }
+  .msg-thinking .thinking-content {
+    padding: 0 12px 10px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-word;
+    border-top: 1px solid var(--border);
+    padding-top: 8px;
+    margin-top: 0;
+  }
 
-        .user-count.active {
-            animation: countBounce 0.5s ease;
-        }
+  /* 工具调用气泡 - 嵌入思维链内部 + 动画 */
+  .msg-tool {
+    background: rgba(0,0,0,.25);
+    border: 1px solid #2d3748;
+    font-size: 13px;
+    margin: 6px 12px 8px;
+    border-radius: 6px;
+  }
+  .msg-tool summary {
+    padding: 8px 12px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 12px;
+    color: var(--blue);
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .msg-tool summary::before {
+    content: '▶';
+    font-size: 10px;
+    transition: transform .25s ease;
+    display: inline-block;
+    color: var(--blue);
+  }
+  .msg-tool[open] summary::before {
+    transform: rotate(90deg);
+  }
+  .msg-tool .details-body {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows .3s ease;
+    overflow: hidden;
+  }
+  .msg-tool[open] .details-body {
+    grid-template-rows: 1fr;
+  }
+  .msg-tool .details-inner {
+    min-height: 0;
+    overflow: hidden;
+  }
+  .msg-tool .tool-content {
+    padding: 0 12px 10px;
+    line-height: 1.5;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border-top: 1px solid #2d3748;
+    padding-top: 8px;
+    color: var(--text-dim);
+    font-size: 12px;
+    max-height: 200px;
+    overflow-y: auto;
+  }
 
-        @keyframes countBounce {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.2); background: rgba(255, 255, 255, 0.4); }
-        }
+  /* agent 最终回答气泡 */
+  .msg-answer {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 25px;
+    font-size: 14px;
+    line-height: 1.7;
+    word-break: break-word;
+  }
 
-        .status-dot {
-            width: 8px;
-            height: 8px;
-            border-radius: 50%;
-            background: #4ade80;
-            animation: pulse 2s infinite;
-            box-shadow: 0 0 10px #4ade80;
-        }
+  /* loading */
+  .msg-loading {
+    font-size: 13px;
+    color: var(--text-dim);
+    padding: 8px 12px;
+  }
+  .msg-loading::after {
+    content: '';
+    animation: dots 1.2s steps(3,end) infinite;
+  }
+  @keyframes dots {
+    0% { content: ''; }
+    33% { content: '.'; }
+    66% { content: '..'; }
+    100% { content: '...'; }
+  }
 
-        .status-dot.disconnected {
-            background: #ef4444;
-            box-shadow: 0 0 10px #ef4444;
-            animation: none;
-        }
+  /* footer */
+  .footer { font-size: 11px; color: var(--text-dim); text-align: center; padding: 8px 0 24px; flex-shrink: 0; }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.6; transform: scale(1.2); }
-        }
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); }
 
-        .heart-display {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-            border-radius: 20px;
-            padding: 40px 20px;
-            text-align: center;
-            margin: 20px 0;
-            box-shadow: 0 10px 30px rgba(245, 87, 108, 0.4);
-            position: relative;
-            overflow: hidden;
-        }
-
-        .heart-display::before {
-            content: '';
-            position: absolute;
-            top: -50%;
-            left: -50%;
-            width: 200%;
-            height: 200%;
-            background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
-            animation: shine 3s infinite;
-        }
-
-        @keyframes shine {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-        .heart-rate-value {
-            font-size: 80px;
-            font-weight: 800;
-            line-height: 1;
-            margin-bottom: 5px;
-            text-shadow: 2px 2px 8px rgba(0, 0, 0, 0.3);
-            font-variant-numeric: tabular-nums;
-        }
-
-        .heart-rate-unit {
-            font-size: 20px;
-            opacity: 0.95;
-            font-weight: 500;
-            letter-spacing: 2px;
-        }
-
-        .heart-icon {
-            font-size: 48px;
-            margin-top: 10px;
-            animation: heartbeat 1s infinite;
-            display: inline-block;
-        }
-
-        @keyframes heartbeat {
-            0%, 100% { transform: scale(1); }
-            10%, 30% { transform: scale(1.1); }
-            20%, 40% { transform: scale(1); }
-        }
-
-        .zone-indicator {
-            text-align: center;
-            font-size: 16px;
-            font-weight: 600;
-            margin-top: 10px;
-            padding: 8px 20px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 999px;
-            display: inline-block;
-            letter-spacing: 1px;
-        }
-
-        .history-chart {
-            background: rgba(255, 255, 255, 0.1);
-            border-radius: 12px;
-            padding: 20px;
-            margin-top: 20px;
-            min-height: 120px;
-        }
-
-        .chart-title {
-            font-size: 14px;
-            font-weight: 600;
-            margin-bottom: 12px;
-            opacity: 0.9;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .chart-bars {
-            display: flex;
-            align-items: flex-end;
-            gap: 4px;
-            height: 80px;
-        }
-
-        .bar {
-            flex: 1;
-            background: linear-gradient(to top, #a78bfa, #c4b5fd);
-            border-radius: 4px 4px 0 0;
-            transition: all 0.3s ease;
-            min-width: 6px;
-            position: relative;
-        }
-
-        .bar:hover {
-            background: linear-gradient(to top, #8b5cf6, #a78bfa);
-            transform: translateY(-2px);
-        }
-
-        .bar::after {
-            content: attr(data-value);
-            position: absolute;
-            bottom: -18px;
-            left: 50%;
-            transform: translateX(-50%);
-            font-size: 10px;
-            opacity: 0.7;
-            white-space: nowrap;
-        }
-
-        .stats {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 12px;
-            margin-top: 20px;
-        }
-
-        .stat-card {
-            background: rgba(255, 255, 255, 0.1);
-            padding: 15px;
-            border-radius: 12px;
-            text-align: center;
-            transition: all 0.3s ease;
-        }
-
-        .stat-card:hover {
-            background: rgba(255, 255, 255, 0.15);
-            transform: translateY(-2px);
-        }
-
-        .stat-value {
-            font-size: 24px;
-            font-weight: 700;
-            margin-bottom: 4px;
-        }
-
-        .stat-label {
-            font-size: 12px;
-            opacity: 0.8;
-            letter-spacing: 0.5px;
-        }
-
-        .connection-status {
-            text-align: center;
-            margin-top: 20px;
-            padding: 12px;
-            border-radius: 8px;
-            font-size: 13px;
-            font-weight: 500;
-            display: none;
-        }
-
-        .connection-status.show {
-            display: block;
-        }
-
-        .connection-status.connected {
-            background: rgba(74, 222, 128, 0.2);
-            color: #4ade80;
-        }
-
-        .connection-status.disconnected {
-            background: rgba(239, 68, 68, 0.2);
-            color: #ef4444;
-        }
-
-        .connection-status.connecting {
-            background: rgba(251, 191, 36, 0.2);
-            color: #fbbf24;
-        }
-
-        .pulse-dot {
-            display: inline-block;
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: currentColor;
-            margin-right: 6px;
-            animation: dotPulse 1.5s infinite;
-        }
-
-        @keyframes dotPulse {
-            0%, 100% { opacity: 0.3; transform: scale(1); }
-            50% { opacity: 1; transform: scale(1.3); }
-        }
-
-        .disconnected {
-            background: #ef4444;
-        }
-
-        /* 响应式 */
-        @media (max-width: 600px) {
-            .container {
-                padding: 24px;
-            }
-
-            .heart-rate-value {
-                font-size: 60px;
-            }
-
-            .stats {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
+  @media (max-width: 600px) {
+    body { padding: 12px 8px 32px; font-size: 13px; }
+    .hr-value { font-size: 48px; }
+    .hr-section { padding: 10px 0 4px; }
+    .stat-val { font-size: 20px; }
+    .stat-box { padding: 8px; }
+    .stats { gap: 8px; }
+    .container { gap: 10px; }
+    .chart-wrap { padding: 8px; }
+    canvas { height: 100px !important; }
+    .window-bar { padding: 8px 12px; font-size: 12px; }
+    .chat-section { min-height: 200px; }
+    .footer { padding-bottom: 32px; }
+  }
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>⚡ 心率实时监测</h1>
-            <p>Live Heart Rate Monitor</p>
-        </div>
+<div class="container">
+  <div class="header">
+    <span class="dot" id="dot"></span>
+    <span style="font-size:12px;color:var(--text-dim)" id="status">offline</span>
+  </div>
 
-        <div class="status-bar">
-            <div class="status-item">
-                <div class="status-dot" id="statusDot"></div>
-                <span id="statusText">连接中...</span>
-                <div class="status-badge" id="onlineBadge" style="display: none;">
-                    <span>👥</span>
-                    <span class="user-count" id="sseClients">0</span>
-                </div>
-            </div>
-            <div class="status-item">
-                <span id="lastUpdate">--:--:--</span>
-            </div>
-        </div>
+  <div class="hr-section">
+    <span class="hr-value" id="hr">--</span><span class="hr-unit">bpm</span>
+    <div class="hr-zone" id="zone">waiting for data</div>
+  </div>
 
-        <div class="heart-display">
-            <div class="heart-rate-value" id="heartRate">--</div>
-            <div class="heart-rate-unit">BPM</div>
-            <div class="heart-icon">❤️</div>
-            <div class="zone-indicator" id="zoneIndicator">等待数据...</div>
-        </div>
+  <div class="window-bar" id="windowBar">
+    window: <span id="windowTitle">--</span>
+  </div>
 
-        <div class="history-chart">
-            <div class="chart-title">
-                <span>📊 最近心率趋势</span>
-                <span id="dataCount">0 条</span>
-            </div>
-            <div class="chart-bars" id="chartBars">
-                <!-- JavaScript will populate this -->
-            </div>
-        </div>
+  <div class="chart-wrap">
+    <canvas id="chart" height="140"></canvas>
+  </div>
 
-        <div class="stats">
-            <div class="stat-card">
-                <div class="stat-value" id="avgValue">--</div>
-                <div class="stat-label">平均 BPM</div>
-            </div>
-            <div class="stat-card">
-                <div class="stat-value" id="maxValue">--</div>
-                <div class="stat-label">最高 BPM</div>
-            </div>
-        </div>
-
-        <div class="connection-status" id="connStatus"></div>
+  <div class="stats">
+    <div class="stat-box">
+      <div class="stat-label">avg</div>
+      <div class="stat-val" id="avg">--</div>
     </div>
+    <div class="stat-box">
+      <div class="stat-label">max</div>
+      <div class="stat-val" id="max">--</div>
+    </div>
+    <div class="stat-box">
+      <div class="stat-label">min</div>
+      <div class="stat-val" id="min">--</div>
+    </div>
+  </div>
 
-    <script>
-        // 配置 - 使用相对路径，自动适配部署环境
-        const SSE_URL = '/stream';
+  <div class="chat-section">
+    <div class="chat-messages" id="chatMessages">
+      <div class="chat-empty">
+        <div class="chat-empty-hint">问点什么吧 💬</div>
+        <div class="chat-quick-btns">
+          <button class="chat-quick-btn" data-q="他还活着吗？">他还活着吗？</button>
+          <button class="chat-quick-btn" data-q="什么时候心率高？">什么时候心率高？</button>
+          <button class="chat-quick-btn" data-q="他QQ用了多久">他QQ用了多久？</button>
+          <button class="chat-quick-btn" data-q="心率怎么样？">心率怎么样？</button>
+          <button class="chat-quick-btn" data-q="在摸鱼吗？">在摸鱼吗？</button>
+        </div>
+      </div>
+    </div>
+    <div class="chat-input-row">
+      <input type="text" id="chatInput" placeholder="问问 AI 助手：他在干什么？心率怎么样？" />
+      <button id="chatSend" onclick="sendChat()">发送</button>
+    </div>
+  </div>
 
-        // 状态管理
-        let eventSource = null;
-        let heartRateData = [];
-        let reconnectTimer = null;
-        let maxDataPoints = 20;
+  <div class="footer">ranjyaa-miband · sse · langchain agent</div>
+</div>
 
-        // DOM 元素
-        const dom = {
-            heartRate: document.getElementById('heartRate'),
-            zoneIndicator: document.getElementById('zoneIndicator'),
-            statusDot: document.getElementById('statusDot'),
-            statusText: document.getElementById('statusText'),
-            lastUpdate: document.getElementById('lastUpdate'),
-            dataCount: document.getElementById('dataCount'),
-            chartBars: document.getElementById('chartBars'),
-            avgValue: document.getElementById('avgValue'),
-            maxValue: document.getElementById('maxValue'),
-            connStatus: document.getElementById('connStatus'),
-            sseClients: document.getElementById('sseClients'),
-            onlineBadge: document.getElementById('onlineBadge')
-        };
+<script>
+const MAX_PTS = 25;
+const data = [];
+let hrMin = Infinity, hrMax = -Infinity, hrSum = 0, hrCount = 0;
+const $ = id => document.getElementById(id);
 
-        // 上一次连接数（用于检测变化）
-        let lastClientCount = 0;
+/* ---- SSE ---- */
+const es = new EventSource('/stream');
+es.onopen = () => {
+  $('dot').classList.add('live');
+  $('status').textContent = 'connected';
+};
+es.onerror = () => {
+  $('dot').classList.remove('live');
+  $('status').textContent = 'reconnecting...';
+};
+es.onmessage = e => {
+  const d = JSON.parse(e.data);
+  const hr = d.heart_rate;
+  if (!hr) return;
 
-        // 连接 SSE
-        function connectSSE() {
-            showStatus('connecting', '连接中...');
+  /* 时间标签 */
+  const now = new Date();
+  const timeStr = now.toTimeString().slice(0,8);
 
-            // 关闭现有连接
-            if (eventSource) {
-                eventSource.close();
-            }
+  data.push({ hr, time: timeStr });
+  if (data.length > MAX_PTS) data.shift();
 
-            try {
-                eventSource = new EventSource(SSE_URL);
+  /* 统计 */
+  hrCount++; hrSum += hr;
+  if (hr > hrMax) hrMax = hr;
+  if (hr < hrMin) hrMin = hr;
+  $('avg').textContent = Math.round(hrSum / hrCount);
+  $('max').textContent = hrMax;
+  $('min').textContent = hrMin;
 
-                // 连接成功
-                eventSource.onopen = () => {
-                    showStatus('connected', '已连接');
-                    console.log('✅ SSE 连接成功');
-                };
+  /* 心率值 */
+  const el = $('hr');
+  el.textContent = hr;
+  el.style.color = hr > 120 ? 'var(--red)' : hr > 100 ? 'var(--yellow)' : 'var(--green)';
+  el.classList.add('bump');
+  setTimeout(() => el.classList.remove('bump'), 150);
 
-                // 接收消息
-                eventSource.onmessage = (event) => {
-                    if (event.data === ':heartbeat') {
-                        console.log('💓 心跳接收');
-                        return;
-                    }
+  /* 区间 */
+  let zone = 'resting';
+  if (hr > 140) zone = 'high intensity';
+  else if (hr > 120) zone = 'cardio';
+  else if (hr > 100) zone = 'warm up';
+  $('zone').textContent = zone;
 
-                    try {
-                        const data = JSON.parse(event.data);
-                        updateDisplay(data);
+  /* 当前窗口 */
+  if (d.current_window) {
+    $('windowTitle').textContent = d.current_window;
+  }
 
-                        // 从 SSE 数据中读取连接数并显示
-                        if (data.active_clients !== undefined) {
-                            updateOnlineUsers(data.active_clients);
-                        }
-                    } catch (e) {
-                        console.error('解析数据失败:', e);
-                    }
-                };
+  drawChart();
+};
 
-                // 错误处理
-                eventSource.onerror = (error) => {
-                    console.error('❌ SSE 错误:', error);
-                    showStatus('disconnected', '连接断开，重连中...');
-                    eventSource.close();
+/* ---- Chart ---- */
+function drawChart() {
+  const c = $('chart');
+  const dpr = window.devicePixelRatio || 1;
+  const rect = c.getBoundingClientRect();
+  c.width = rect.width * dpr;
+  c.height = rect.height * dpr;
+  const ctx = c.getContext('2d');
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
 
-                    // 自动重连
-                    clearTimeout(reconnectTimer);
-                    reconnectTimer = setTimeout(connectSSE, 3000);
-                };
+  const pad = { top: 12, right: 12, bottom: 32, left: 38 };
+  const gw = W - pad.left - pad.right;
+  const gh = H - pad.top - pad.bottom;
 
-            } catch (e) {
-                console.error('连接失败:', e);
-                showStatus('disconnected', '无法连接，3秒后重试...');
-                clearTimeout(reconnectTimer);
-                reconnectTimer = setTimeout(connectSSE, 3000);
-            }
-        }
+  ctx.clearRect(0, 0, W, H);
+  if (data.length < 2) return;
 
-        // 更新显示
-        function updateDisplay(data) {
-            const hr = data.heart_rate;
+  const hrs = data.map(d => d.hr);
+  const lo = Math.min(...hrs) - 5;
+  const hi = Math.max(...hrs) + 5;
+  const range = hi - lo || 1;
 
-            // 1. 显示当前心率（带动画）
-            animateValue(dom.heartRate, parseInt(dom.heartRate.textContent) || 0, hr, 500);
+  const pts = data.map((d, i) => ({
+    x: pad.left + (i / (data.length - 1)) * gw,
+    y: pad.top + (1 - (d.hr - lo) / range) * gh
+  }));
 
-            // 2. 更新心率区间
-            const zone = getHeartRateZone(hr);
-            dom.zoneIndicator.textContent = zone.name;
-            dom.zoneIndicator.style.background = zone.color;
+  /* 渐变填充 */
+  const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + gh);
+  grad.addColorStop(0, 'rgba(239,68,68,.25)');
+  grad.addColorStop(1, 'rgba(239,68,68,0)');
+  ctx.beginPath();
+  ctx.moveTo(pts[0].x, pad.top + gh);
+  pts.forEach(p => ctx.lineTo(p.x, p.y));
+  ctx.lineTo(pts[pts.length - 1].x, pad.top + gh);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
 
-            // 3. 更新时间和统计
-            const now = new Date();
-            dom.lastUpdate.textContent = now.toLocaleTimeString();
-            dom.dataCount.textContent = `${heartRateData.length} 条`;
+  /* 线 */
+  ctx.beginPath();
+  pts.forEach((p, i) => i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y));
+  ctx.strokeStyle = 'var(--red)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
 
-            // 4. 添加到历史数据
-            heartRateData.push(hr);
-            if (heartRateData.length > maxDataPoints) {
-                heartRateData.shift();
-            }
+  /* 末端圆点 */
+  const last = pts[pts.length - 1];
+  ctx.beginPath();
+  ctx.arc(last.x, last.y, 4, 0, Math.PI * 2);
+  ctx.fillStyle = '#ef4444';
+  ctx.fill();
 
-            // 5. 更新图表
-            updateChart();
+  /* Y 轴刻度 */
+  ctx.fillStyle = '#71717a';
+  ctx.font = '11px Courier New';
+  ctx.textAlign = 'right';
+  for (let i = 0; i <= 4; i++) {
+    const val = Math.round(lo + (range * i) / 4);
+    const y = pad.top + gh - (gh * i) / 4;
+    ctx.fillText(val, pad.left - 6, y + 4);
+  }
 
-            // 6. 更新平均值和最大值
-            updateStats();
+  /* X 轴时间标签 — 根据宽度自动减少 */
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#71717a';
+  ctx.font = '10px Courier New';
+  const labelWidth = 70;
+  const maxLabels = Math.max(2, Math.floor(gw / labelWidth));
+  const labelCount = Math.min(data.length, maxLabels);
+  const step = Math.max(1, Math.floor((data.length - 1) / (labelCount - 1)));
+  for (let i = 0; i < data.length; i += step) {
+    const x = pad.left + (i / (data.length - 1)) * gw;
+    ctx.fillText(data[i].time, x, H - pad.bottom + 16);
+  }
+  /* 末尾标签 */
+  if ((data.length - 1) % step !== 0) {
+    ctx.fillText(data[data.length - 1].time, pts[pts.length - 1].x, H - pad.bottom + 16);
+  }
+}
 
-            // 7. 微妙的背景动画
-            pulseBackground();
-        }
+/* ---- Chat ---- */
+let chatBusy = false;
 
-        // 获取心率区间
-        function getHeartRateZone(hr) {
-            if (hr < 60) return { name: '休息状态', color: 'rgba(59, 130, 246, 0.3)' };
-            if (hr < 100) return { name: '放松状态', color: 'rgba(34, 197, 94, 0.3)' };
-            if (hr < 130) return { name: '有氧运动', color: 'rgba(251, 191, 36, 0.3)' };
-            if (hr < 160) return { name: '燃脂区间', color: 'rgba(249, 115, 22, 0.3)' };
-            return { name: '高强度', color: 'rgba(239, 68, 68, 0.3)' };
-        }
+async function sendChat() {
+  const input = $('chatInput');
+  const msg = input.value.trim();
+  if (!msg || chatBusy) return;
 
-        // 更新图表
-        function updateChart() {
-            const max = Math.max(...heartRateData, 60);
-            const min = Math.min(...heartRateData, 60);
-            const range = max - min || 1;
+  chatBusy = true;
+  $('chatSend').disabled = true;
+  input.value = '';
 
-            dom.chartBars.innerHTML = heartRateData.map(val => {
-                const height = ((val - min) / range) * 100;
-                return `<div class="bar" style="height: ${height}%" data-value="${val}"></div>`;
-            }).join('');
-        }
+  /* 首次发送时，将输入框移到底部 */
+  const chatSection = input.closest('.chat-section');
+  if (!chatSection.classList.contains('has-messages')) {
+    chatSection.classList.add('has-messages');
+  }
 
-        // 更新统计
-        function updateStats() {
-            if (heartRateData.length === 0) return;
+  const messages = $('chatMessages');
 
-            const sum = heartRateData.reduce((a, b) => a + b, 0);
-            const avg = Math.round(sum / heartRateData.length);
-            const max = Math.max(...heartRateData);
+  /* 用户气泡 */
+  const userBubble = document.createElement('div');
+  userBubble.className = 'msg-user';
+  userBubble.textContent = msg;
+  messages.appendChild(userBubble);
 
-            dom.avgValue.textContent = avg;
-            dom.maxValue.textContent = max;
-        }
+  /* agent 消息组容器 */
+  const agentGroup = document.createElement('div');
+  agentGroup.className = 'msg-agent-group';
+  messages.appendChild(agentGroup);
 
-        // 更新在线人数
-        function updateOnlineUsers(count) {
-            if (!dom.sseClients || !dom.onlineBadge) return;
+  /* loading */
+  const loadingEl = document.createElement('div');
+  loadingEl.className = 'msg-loading';
+  loadingEl.textContent = 'thinking';
+  agentGroup.appendChild(loadingEl);
 
-            // 首次收到数据时显示徽章
-            if (dom.onlineBadge.style.display === 'none') {
-                dom.onlineBadge.style.display = 'flex';
-            }
+  messages.scrollTop = messages.scrollHeight;
 
-            // 如果人数变化，添加动画
-            if (count !== lastClientCount) {
-                dom.sseClients.classList.add('active');
-                setTimeout(() => {
-                    dom.sseClients.classList.remove('active');
-                }, 500);
-            }
+  /* 状态追踪 */
+  let thinkingDetails = null; /* <details> 元素 */
+  let thinkingContent = null; /* 思维链内容容器 */
+  let thinkingText = '';
+  let toolDetails = null;     /* 当前工具调用的 <details> */
+  let answerEl = null;         /* 最终回答气泡 */
+  let inThink = false;         /* 是否在 <think> 标签内 */
+  let answerText = '';
 
-            // 更新数值
-            dom.sseClients.textContent = count;
-            lastClientCount = count;
-        }
+  try {
+    const resp = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: msg })
+    });
 
-        // 状态显示
-        function showStatus(type, message) {
-            const statusMap = {
-                'connected': { class: 'connected', dotClass: '', showDot: true },
-                'disconnected': { class: 'disconnected', dotClass: 'disconnected', showDot: true },
-                'connecting': { class: 'connecting', dotClass: '', showDot: true }
-            };
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
 
-            const status = statusMap[type];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buf += decoder.decode(value, { stream: true });
 
-            // 更新状态点
-            dom.statusDot.className = `status-dot ${status.dotClass}`;
-            dom.statusText.textContent = message;
+      const lines = buf.split('\n');
+      buf = lines.pop();
 
-            // 显示连接状态提示
-            dom.connStatus.className = `connection-status show ${status.class}`;
-            dom.connStatus.innerHTML = status.showDot ?
-                `<span class=\"pulse-dot\"></span>${message}` : message;
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        const raw = line.slice(6).trim();
+        if (!raw) continue;
 
-            // 3秒后隐藏提示
-            if (type === 'connected') {
-                setTimeout(() => {
-                    dom.connStatus.classList.remove('show');
-                }, 2000);
-            }
-        }
+        let evt;
+        try { evt = JSON.parse(raw); } catch { continue; }
 
-        // 动画更新数值
-        function animateValue(element, start, end, duration) {
-            if (start === end) return;
+        /* 移除 loading */
+        if (loadingEl.parentNode) loadingEl.remove();
 
-            const startTime = performance.now();
-            const animate = (currentTime) => {
-                const elapsed = currentTime - startTime;
-                const progress = Math.min(elapsed / duration, 1);
+        if (evt.type === 'thinking') {
+          /* 工具调用思维 → 展示在思维链气泡中 */
+          if (!thinkingDetails) {
+            thinkingDetails = document.createElement('details');
+            thinkingDetails.className = 'msg-thinking';
+            thinkingDetails.open = true;
+            const summary = document.createElement('summary');
+            summary.textContent = '💭 思维过程';
+            thinkingDetails.appendChild(summary);
+            const body = document.createElement('div');
+            body.className = 'details-body';
+            const inner = document.createElement('div');
+            inner.className = 'details-inner';
+            thinkingContent = document.createElement('div');
+            thinkingContent.className = 'thinking-content';
+            inner.appendChild(thinkingContent);
+            body.appendChild(inner);
+            thinkingDetails.appendChild(body);
+            agentGroup.appendChild(thinkingDetails);
+          }
+          thinkingText += evt.content;
+          thinkingContent.textContent = thinkingText;
+          messages.scrollTop = messages.scrollHeight;
 
-                // 使用缓动函数
-                const easeOut = 1 - Math.pow(1 - progress, 3);
-                const current = Math.round(start + (end - start) * easeOut);
+        } else if (evt.type === 'tool_result') {
+          /* 工具调用结果 → 嵌入思维链气泡内部 */
+          if (!thinkingDetails) {
+            thinkingDetails = document.createElement('details');
+            thinkingDetails.className = 'msg-thinking';
+            thinkingDetails.open = true;
+            const s = document.createElement('summary');
+            s.textContent = '💭 思维过程';
+            thinkingDetails.appendChild(s);
+            const body = document.createElement('div');
+            body.className = 'details-body';
+            const inner = document.createElement('div');
+            inner.className = 'details-inner';
+            thinkingContent = document.createElement('div');
+            thinkingContent.className = 'thinking-content';
+            inner.appendChild(thinkingContent);
+            body.appendChild(inner);
+            thinkingDetails.appendChild(body);
+            agentGroup.appendChild(thinkingDetails);
+          }
+          toolDetails = document.createElement('details');
+          toolDetails.className = 'msg-tool';
+          const summary = document.createElement('summary');
+          summary.textContent = '🔧 ' + (evt.name || 'tool');
+          toolDetails.appendChild(summary);
+          const tBody = document.createElement('div');
+          tBody.className = 'details-body';
+          const tInner = document.createElement('div');
+          tInner.className = 'details-inner';
+          const content = document.createElement('div');
+          content.className = 'tool-content';
+          /* 尝试格式化 JSON */
+          try {
+            const parsed = JSON.parse(evt.content);
+            content.textContent = JSON.stringify(parsed, null, 2);
+          } catch {
+            content.textContent = evt.content || '(no output)';
+          }
+          tInner.appendChild(content);
+          tBody.appendChild(tInner);
+          toolDetails.appendChild(tBody);
+          thinkingDetails.querySelector('.details-inner').appendChild(toolDetails);
+          messages.scrollTop = messages.scrollHeight;
 
-                element.textContent = current;
+        } else if (evt.type === 'answer') {
+          let text = evt.content || '';
 
-                if (progress < 1) {
-                    requestAnimationFrame(animate);
+          /* 处理 <think> 标签：提取思维链内容 */
+          while (text.length > 0) {
+            if (inThink) {
+              const closeIdx = text.indexOf('</think>');
+              if (closeIdx !== -1) {
+                /* 结束 think */
+                const thinkPart = text.slice(0, closeIdx);
+                thinkingText += thinkPart;
+                if (thinkingContent) thinkingContent.textContent = thinkingText;
+                text = text.slice(closeIdx + 8);
+                inThink = false;
+              } else {
+                /* 还没结束，全部是思维内容 */
+                thinkingText += text;
+                if (thinkingContent) thinkingContent.textContent = thinkingText;
+                text = '';
+              }
+            } else {
+              const openIdx = text.indexOf('<think>');
+              if (openIdx !== -1) {
+                /* 进入 think */
+                const before = text.slice(0, openIdx);
+                if (before) {
+                  if (!answerEl) {
+                    answerEl = document.createElement('div');
+                    answerEl.className = 'msg-answer';
+                    agentGroup.appendChild(answerEl);
+                  }
+                  answerText += before;
+                  answerEl.textContent = answerText.trimStart();
                 }
-            };
-
-            requestAnimationFrame(animate);
-        }
-
-        // 背景脉冲动画
-        function pulseBackground() {
-            document.body.style.animation = 'none';
-            setTimeout(() => {
-                document.body.style.animation = '';
-            }, 10);
-        }
-
-        // 页面加载时自动连接
-        window.addEventListener('DOMContentLoaded', () => {
-            console.log('🚀 启动心率监测...');
-            connectSSE();
-        });
-
-        // 页面关闭时清理
-        window.addEventListener('beforeunload', () => {
-            if (eventSource) {
-                eventSource.close();
+                text = text.slice(openIdx + 7);
+                inThink = true;
+                /* 确保思维链气泡存在 */
+                if (!thinkingDetails) {
+                  thinkingDetails = document.createElement('details');
+                  thinkingDetails.className = 'msg-thinking';
+                  thinkingDetails.open = true;
+                  const summary = document.createElement('summary');
+                  summary.textContent = '💭 思维过程';
+                  thinkingDetails.appendChild(summary);
+                  const body = document.createElement('div');
+                  body.className = 'details-body';
+                  const inner = document.createElement('div');
+                  inner.className = 'details-inner';
+                  thinkingContent = document.createElement('div');
+                  thinkingContent.className = 'thinking-content';
+                  inner.appendChild(thinkingContent);
+                  body.appendChild(inner);
+                  thinkingDetails.appendChild(body);
+                  /* 插到 answerEl 前面 */
+                  if (answerEl && answerEl.parentNode) {
+                    agentGroup.insertBefore(thinkingDetails, answerEl);
+                  } else {
+                    agentGroup.appendChild(thinkingDetails);
+                  }
+                }
+              } else {
+                /* 正常回答内容 */
+                if (!answerEl) {
+                  answerEl = document.createElement('div');
+                  answerEl.className = 'msg-answer';
+                  agentGroup.appendChild(answerEl);
+                }
+                answerText += text;
+                answerEl.textContent = answerText.trimStart();
+                text = '';
+              }
             }
-            clearTimeout(reconnectTimer);
-        });
-    </script>
+          }
+          messages.scrollTop = messages.scrollHeight;
+
+        } else if (evt.type === 'done') {
+          /* 完成 — 清理空气泡，渲染markdown */
+          if (thinkingDetails && !thinkingText.trim()) {
+            thinkingDetails.remove();
+          }
+          if (answerEl) {
+            const trimmed = answerText.trimStart();
+            if (!trimmed) {
+              answerEl.remove();
+            } else {
+              /* 用 marked 渲染 markdown */
+              try {
+                answerEl.innerHTML = marked.parse(trimmed);
+              } catch {
+                answerEl.textContent = trimmed;
+              }
+            }
+          }
+          /* 如果什么都没输出 */
+          if (!agentGroup.children.length) {
+            const empty = document.createElement('div');
+            empty.className = 'msg-answer';
+            empty.textContent = '(无回复)';
+            agentGroup.appendChild(empty);
+          }
+        }
+      }
+    }
+  } catch (err) {
+    if (loadingEl.parentNode) loadingEl.remove();
+    const errEl = document.createElement('div');
+    errEl.className = 'msg-answer';
+    errEl.style.color = 'var(--red)';
+    errEl.textContent = '请求失败: ' + err.message;
+    agentGroup.appendChild(errEl);
+  }
+
+  chatBusy = false;
+  $('chatSend').disabled = false;
+  messages.scrollTop = messages.scrollHeight;
+}
+
+/* Enter 发送 */
+$('chatInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendChat();
+  }
+});
+
+/* 快捷问题按钮 */
+document.querySelectorAll('.chat-quick-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    $('chatInput').value = btn.dataset.q;
+    sendChat();
+  });
+});
+</script>
 </body>
 </html>

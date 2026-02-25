@@ -11,7 +11,11 @@ WORKDIR /app
 COPY pyproject.toml ./
 COPY gun.py ./
 COPY cloud_bridge.py ./
+COPY agent.py ./
 COPY ./html/frontend.html ./html/
+
+# 创建数据目录
+RUN mkdir -p data
 
 # 使用 uv 安装依赖
 RUN uv sync -i https://mirrors.ustc.edu.cn/pypi/simple/
