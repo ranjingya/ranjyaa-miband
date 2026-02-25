@@ -10,6 +10,7 @@ LangChain Agent 模块 — MiniMax 大模型 + 工具调用
 
 import json
 import inspect
+import time
 import threading
 from datetime import datetime, timedelta
 from typing import Optional
@@ -18,6 +19,7 @@ from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_core.tools import tool
 from langchain_openai import ChatOpenAI
 from langgraph.prebuilt import create_react_agent
+from langgraph.checkpoint.memory import MemorySaver
 
 # ========== 共享数据引用（由 cloud_bridge.py 注入） ==========
 _hr_history: list = []
@@ -25,6 +27,9 @@ _window_history: list = []
 _get_current_window = lambda: "未知"
 _lock: Optional[threading.Lock] = None
 _agent = None
+_memory: Optional[MemorySaver] = None
+_thread_last_access: dict = {}  # thread_id → timestamp
+THREAD_MAX_AGE = 86400  # 24小时
 
 # ========== 系统提示词 ==========
 SYSTEM_PROMPT = (
@@ -174,12 +179,13 @@ def init_agent(api_key: str, hr_history: list, window_history: list, get_current
     通过参数注入共享数据的 **引用**（而非副本），
     工具函数读取到的永远是最新数据。
     """
-    global _hr_history, _window_history, _get_current_window, _lock, _agent
+    global _hr_history, _window_history, _get_current_window, _lock, _agent, _memory
 
     _hr_history = hr_history
     _window_history = window_history
     _get_current_window = get_current_window
     _lock = lock
+    _memory = MemorySaver()
 
     llm = ChatOpenAI(
         model="MiniMax-M2.5",
@@ -198,22 +204,39 @@ def init_agent(api_key: str, hr_history: list, window_history: list, get_current
     params = sig.parameters
 
     if "prompt" in params:
-        _agent = create_react_agent(llm, tools, prompt=SYSTEM_PROMPT)
+        _agent = create_react_agent(llm, tools, prompt=SYSTEM_PROMPT, checkpointer=_memory)
     elif "state_modifier" in params:
-        _agent = create_react_agent(llm, tools, state_modifier=SYSTEM_PROMPT)
+        _agent = create_react_agent(llm, tools, state_modifier=SYSTEM_PROMPT, checkpointer=_memory)
     elif "messages_modifier" in params:
-        _agent = create_react_agent(llm, tools, messages_modifier=SYSTEM_PROMPT)
+        _agent = create_react_agent(llm, tools, messages_modifier=SYSTEM_PROMPT, checkpointer=_memory)
     else:
-        # 最后兜底：不传提示词，在 stream_agent 中手动注入 SystemMessage
-        _agent = create_react_agent(llm, tools)
+        _agent = create_react_agent(llm, tools, checkpointer=_memory)
         print("[agent] WARNING: create_react_agent 不支持已知的提示词参数，将在消息中注入系统提示词")
 
 
 # ========== 流式输出 ==========
 
-def stream_agent(message: str):
+def cleanup_threads():
+    """清理超过 24 小时未访问的 thread"""
+    now = time.time()
+    expired = [tid for tid, t in _thread_last_access.items() if now - t > THREAD_MAX_AGE]
+    if not expired:
+        return
+    for tid in expired:
+        # MemorySaver 内部用 storage dict 存储
+        if _memory and hasattr(_memory, 'storage'):
+            _memory.storage.pop(tid, None)
+        _thread_last_access.pop(tid, None)
+    print(f"[agent] 清理 {len(expired)} 个过期 thread")
+
+
+def stream_agent(message: str, thread_id: str = "default"):
     """
     流式执行 Agent 并逐步 yield 事件。
+
+    Args:
+        message: 用户消息
+        thread_id: 会话 ID，同一 thread_id 共享对话记忆
 
     事件类型：
         - {"type": "thinking", "content": "..."} — 思维过程
@@ -226,13 +249,20 @@ def stream_agent(message: str):
         yield {"type": "done"}
         return
 
+    # 记录访问时间 & 定期清理
+    _thread_last_access[thread_id] = time.time()
+    cleanup_threads()
+
     try:
         messages = [
             HumanMessage(content=message),
         ]
 
+        config = {"configurable": {"thread_id": thread_id}}
+
         stream = _agent.stream(
             {"messages": messages},
+            config=config,
             stream_mode="messages",
         )
 

@@ -464,6 +464,9 @@ const data = [];
 let hrMin = Infinity, hrMax = -Infinity, hrSum = 0, hrCount = 0;
 const $ = id => document.getElementById(id);
 
+/* ---- 会话 ID（页面级，刷新即重置） ---- */
+const threadId = crypto.randomUUID();
+
 /* ---- SSE ---- */
 const es = new EventSource('/stream');
 es.onopen = () => {
@@ -650,7 +653,7 @@ async function sendChat() {
     const resp = await fetch('/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: msg })
+      body: JSON.stringify({ message: msg, thread_id: threadId })
     });
 
     const reader = resp.body.getReader();

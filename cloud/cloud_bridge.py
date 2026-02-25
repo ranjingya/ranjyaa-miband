@@ -218,11 +218,12 @@ def chat():
     try:
         data = request.get_json(force=True)
         message = data.get("message", "").strip()
+        thread_id = data.get("thread_id", "default")
         if not message:
             return jsonify({"error": "需要 message"}), 400
 
         def generate():
-            for event in stream_agent(message):
+            for event in stream_agent(message, thread_id=thread_id):
                 yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
         return Response(
